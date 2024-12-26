@@ -2,17 +2,8 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import DeviceList from '../components/DeviceList'
 
-// Configure axios defaults
-axios.defaults.headers.common['Accept'] = 'application/json'
-axios.defaults.withCredentials = false
-
-const axiosInstance = axios.create({
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Accept': 'application/json'
-  }
-})
+const API_BASE_URL = 'https://api2.arduino.cc/iot/v2'
+const AUTH_BASE_URL = 'https://api2.arduino.cc/iot/v1'
 
 export default function Home() {
   const [devices, setDevices] = useState([])
@@ -22,81 +13,57 @@ export default function Home() {
   useEffect(() => {
     async function fetchData() {
       try {
-        console.log('Fetching with credentials:', {
-          clientId: process.env.NEXT_PUBLIC_ARDUINO_CLIENT_ID,
-          hasSecret: !!process.env.NEXT_PUBLIC_ARDUINO_CLIENT_SECRET
-        })
-
-        // Get access token
-        const tokenResponse = await axiosInstance.post(
-          'https://api2.arduino.cc/iot/v1/clients/token',
-          new URLSearchParams({
+        // Step 1: Get access token using client credentials
+        const tokenResponse = await axios({
+          method: 'post',
+          url: `${AUTH_BASE_URL}/clients/token`,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          data: new URLSearchParams({
             grant_type: 'client_credentials',
             client_id: process.env.NEXT_PUBLIC_ARDUINO_CLIENT_ID || '',
             client_secret: process.env.NEXT_PUBLIC_ARDUINO_CLIENT_SECRET || '',
             audience: 'https://api2.arduino.cc/iot'
           }).toString()
-        )
+        })
 
         const accessToken = tokenResponse.data.access_token
-        console.log('Got access token:', !!accessToken)
 
-        // Configure headers for subsequent requests
-        const apiConfig = {
+        // Step 2: Get list of devices
+        const devicesResponse = await axios({
+          method: 'get',
+          url: `${API_BASE_URL}/devices`,
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Authorization': `Bearer ${accessToken}`
           }
-        }
-
-        // Get things (which includes devices)
-        const thingsResponse = await axiosInstance.get(
-          'https://api2.arduino.cc/iot/v2/things',
-          apiConfig
-        )
-
-        console.log('Got things:', thingsResponse.data.length)
-
-        // Get properties for each thing
-        const things = thingsResponse.data
-        const propertiesPromises = things.map(thing => 
-          axiosInstance.get(
-            `https://api2.arduino.cc/iot/v2/things/${thing.id}/properties`,
-            apiConfig
-          )
-        )
-
-        const propertiesResponses = await Promise.all(propertiesPromises)
-        const thingsWithProperties = things.map((thing, index) => ({
-          ...thing,
-          properties: propertiesResponses[index].data
-        }))
-
-        // Group things by device
-        const deviceMap = new Map()
-        thingsWithProperties.forEach(thing => {
-          if (!deviceMap.has(thing.device_id)) {
-            deviceMap.set(thing.device_id, {
-              id: thing.device_id,
-              name: thing.device_name || 'Unknown Device',
-              things: []
-            })
-          }
-          deviceMap.get(thing.device_id).things.push(thing)
         })
 
-        const devicesArray = Array.from(deviceMap.values())
-        console.log('Processed devices:', devicesArray.length)
-        setDevices(devicesArray)
+        // Step 3: Get things for each device
+        const deviceThingsPromises = devicesResponse.data.map(async (device: any) => {
+          const thingsResponse = await axios({
+            method: 'get',
+            url: `${API_BASE_URL}/things`,
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            },
+            params: {
+              device_id: device.id
+            }
+          })
+
+          return {
+            ...device,
+            things: thingsResponse.data
+          }
+        })
+
+        const devicesWithThings = await Promise.all(deviceThingsPromises)
+        setDevices(devicesWithThings)
         setLoading(false)
       } catch (err: any) {
-        console.error('Error fetching data:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status
-        })
-        setError(`Failed to fetch devices: ${err.message}`)
+        console.error('Error:', err.response?.data || err.message)
+        setError(err.response?.data?.message || err.message)
         setLoading(false)
       }
     }
