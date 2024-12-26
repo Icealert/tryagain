@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
+  distDir: '.next',
   async headers() {
     return [
       {
@@ -20,11 +22,7 @@ const nextConfig = {
       fallback: [
         {
           source: '/:path*',
-          destination: '/_next/static/:path*'
-        },
-        {
-          source: '/',
-          destination: '/index'
+          destination: '/:path*'
         }
       ]
     }
