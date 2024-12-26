@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
-  distDir: '.next',
+  distDir: 'dist',
   async headers() {
     return [
       {
@@ -18,14 +17,7 @@ const nextConfig = {
     ]
   },
   async rewrites() {
-    return {
-      fallback: [
-        {
-          source: '/:path*',
-          destination: '/:path*'
-        }
-      ]
-    }
+    return []
   }
 }
 
