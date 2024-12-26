@@ -10,6 +10,10 @@ async function getAccessToken() {
       client_id: process.env.ARDUINO_CLIENT_ID,
       client_secret: process.env.ARDUINO_CLIENT_SECRET,
       audience: 'https://api2.arduino.cc/iot'
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
     return response.data.access_token
   } catch (error) {
@@ -29,15 +33,16 @@ export default async function handler(
   try {
     const accessToken = await getAccessToken()
     
-    const response = await axios.get(`${ARDUINO_API_URL}/devices`, {
+    const response = await axios.get(`${ARDUINO_API_URL}/things`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
     })
 
     return res.status(200).json(response.data)
   } catch (error) {
     console.error('Error fetching devices:', error)
-    return res.status(500).json({ message: 'Error fetching devices' })
+    return res.status(500).json({ message: 'Error fetching devices', error: error.response?.data || error.message })
   }
 } 
